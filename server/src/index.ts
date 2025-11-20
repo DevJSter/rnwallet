@@ -52,21 +52,36 @@ app.use('/api', txRoutes);
 // Health check
 app.get('/health', (req: Request, res: Response) => {
   res.json({ status: 'ok' });
-});
+}); 
 
 // Socket.IO connection handling
 io.on('connection', (socket) => {
   console.log(`\n🔌 [SOCKET] New client connected: ${socket.id}`);
+  console.log(`  Transport: ${socket.conn.transport.name}`);
+  console.log(`  Auth data:`, socket.handshake.auth);
   
   // Client joins a session room
-  socket.on('join', (sessionId: string) => {
+  socket.on('join', async (sessionId: string) => {
     console.log(`📥 [SOCKET] Client ${socket.id} joining session room: ${sessionId}`);
-    socket.join(sessionId);
+    await socket.join(sessionId);
+    
+    // Verify the join
+    const socketsInRoom = await io.in(sessionId).allSockets();
     console.log(`✅ [SOCKET] Client joined room: ${sessionId}`);
+    console.log(`  Total clients in room: ${socketsInRoom.size}`);
+    console.log(`  Socket IDs:`, Array.from(socketsInRoom));
+    
+    // Send confirmation back to the client
+    socket.emit('joined', { sessionId, socketId: socket.id });
   });
   
-  socket.on('disconnect', () => {
+  socket.on('disconnect', (reason) => {
     console.log(`🔌 [SOCKET] Client disconnected: ${socket.id}`);
+    console.log(`  Reason: ${reason}`);
+  });
+  
+  socket.on('error', (error) => {
+    console.error(`❌ [SOCKET] Socket error for ${socket.id}:`, error);
   });
 });
 

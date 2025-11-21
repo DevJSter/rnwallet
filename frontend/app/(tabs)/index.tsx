@@ -9,7 +9,7 @@ import type { ParsedDeepLink } from '@/services/deeplink.service';
 import { BACKEND_URL, DAPP_URL, SOCKET_CONFIG, METAMASK_CONFIG } from '@/config/app.config';
 
 export default function HomeScreen() {
-  const [showWebView, setShowWebView] = useState(true);
+  const [showWebView, setShowWebView] = useState(false);
   const [authenticated, setAuthenticated] = useState(false);
   const [userAddress, setUserAddress] = useState<string | null>(null);
   const [webViewKey, setWebViewKey] = useState(0);
@@ -550,6 +550,55 @@ export default function HomeScreen() {
     }
   };
 
+  // Show authenticated state
+  if (authenticated && userAddress) {
+    return (
+      <ThemedView style={styles.container}>
+        <View style={styles.content}>
+          <View style={styles.statusCard}>
+            <Text style={styles.statusEmoji}></Text>
+            <ThemedText type="title" style={styles.connectedTitle}>
+              Wallet Connected!
+            </ThemedText>
+            <View style={styles.addressCard}>
+              <Text style={styles.addressLabel}>Your Address</Text>
+              <Text style={styles.addressValue}>
+                {userAddress}
+              </Text>
+              <Text style={styles.addressShort}>
+                {userAddress.substring(0, 6)}...{userAddress.substring(userAddress.length - 4)}
+              </Text>
+            </View>
+            
+            {sessionId && (
+              <View style={styles.sessionInfo}>
+                <Text style={styles.sessionLabel}>Session ID</Text>
+                <Text style={styles.sessionValue}>
+                  {sessionId}
+                </Text>
+              </View>
+            )}
+
+            <TouchableOpacity 
+              style={styles.disconnectButton} 
+              onPress={handleDisconnect}
+            >
+              <Text style={styles.disconnectButtonText}>🔌 Disconnect Wallet</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={styles.refreshButton} 
+              onPress={() => setWebViewKey(prev => prev + 1)}
+            >
+              <Text style={styles.refreshButtonText}>🔄 Refresh Connection</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </ThemedView>
+    );
+  }
+
+  // Show WebView for connection process
   if (showWebView) {
     return (
       <View style={styles.fullScreen}>
@@ -557,11 +606,7 @@ export default function HomeScreen() {
           <TouchableOpacity onPress={handleDisconnect} style={styles.backButton}>
             <Text style={styles.backButtonText}>← Back</Text>
           </TouchableOpacity>
-          {authenticated && userAddress ? (
-            <Text style={styles.addressText}>
-              {userAddress.substring(0, 6)}...{userAddress.substring(userAddress.length - 4)}
-            </Text>
-          ) : sessionId ? (
+          {sessionId ? (
             <TouchableOpacity onPress={handleCheckStatus} style={styles.checkButton}>
               <Text style={styles.checkButtonText}>🔄 Check Status</Text>
             </TouchableOpacity>
@@ -581,6 +626,7 @@ export default function HomeScreen() {
     );
   }
 
+  // Show connection options
   return (
     <ThemedView style={styles.container}>
       <View style={styles.content}>
@@ -735,5 +781,103 @@ const styles = StyleSheet.create({
   noteText: {
     fontSize: 12,
     opacity: 0.8,
+  },
+  statusCard: {
+    width: '100%',
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    padding: 32,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 5,
+  },
+  statusEmoji: {
+    fontSize: 64,
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  connectedTitle: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    marginBottom: 24,
+    color: '#28a745',
+  },
+  addressCard: {
+    backgroundColor: '#f8f9fa',
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 20,
+    borderWidth: 2,
+    borderColor: '#e8f5e9',
+  },
+  addressLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#666',
+    marginBottom: 8,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+  },
+  addressValue: {
+    fontSize: 11,
+    fontFamily: 'monospace',
+    color: '#333',
+    marginBottom: 12,
+    lineHeight: 18,
+  },
+  addressShort: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#667eea',
+    textAlign: 'center',
+    fontFamily: 'monospace',
+  },
+  sessionInfo: {
+    backgroundColor: '#fff3cd',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: '#ffc107',
+  },
+  sessionLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#856404',
+    marginBottom: 6,
+    textTransform: 'uppercase',
+  },
+  sessionValue: {
+    fontSize: 12,
+    fontFamily: 'monospace',
+    color: '#856404',
+  },
+  disconnectButton: {
+    backgroundColor: '#dc3545',
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    marginBottom: 12,
+  },
+  disconnectButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  refreshButton: {
+    backgroundColor: '#f0f0f0',
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+  },
+  refreshButtonText: {
+    color: '#667eea',
+    fontSize: 14,
+    fontWeight: '600',
+    textAlign: 'center',
   },
 });

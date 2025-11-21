@@ -1,9 +1,11 @@
 {
-  "name": "frontend",
+  "name": "DappWallet",
   "main": "expo-router/entry",
   "version": "1.0.0",
   "scripts": {
     "start": "expo start",
+    "dev:android" : "rm -rf android/build&&npx expo run:android",
+    "dev:ios" : "rm -rf ios/build&&npx expo run:ios", 
     "reset-project": "node ./scripts/reset-project.js",
     "android": "expo run:android",
     "ios": "expo run:ios",

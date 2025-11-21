@@ -163,22 +163,35 @@ export default function HomeScreen() {
       
       // Step 3: Setup polling FIRST (primary method for devtunnel)
       console.log('[RN] 🔍 Starting session status polling...');
+      console.log('[RN] 📡 Polling endpoint:', `${BACKEND_URL}/api/session/${newSessionId}`);
+      let pollAttempts = 0;
+      const maxPollAttempts = 60; // 2 minutes at 2-second intervals
+      
       const pollInterval = setInterval(async () => {
         if (authenticated) {
           // Already authenticated, stop polling
+          console.log('[RN] ✅ Already authenticated, stopping polling');
           clearInterval(pollInterval);
           return;
         }
         
+        pollAttempts++;
+        
         try {
-          console.log('[RN] 🔍 Polling session status...');
+          console.log(`[RN] 🔍 Polling session status... (attempt ${pollAttempts}/${maxPollAttempts})`);
           const statusResponse = await fetch(`${BACKEND_URL}/api/session/${newSessionId}`);
           
           if (statusResponse.ok) {
             const sessionData = await statusResponse.json();
+            console.log('[RN] 📊 Session data received:', {
+              connected: sessionData.connected,
+              hasAddress: !!sessionData.address,
+              address: sessionData.address ? `${sessionData.address.substring(0, 6)}...` : 'none'
+            });
             
             if (sessionData.connected && sessionData.address) {
-              console.log('✅ [RN] Session connected via polling:', sessionData.address);
+              console.log('✅ [RN] Session connected via polling!');
+              console.log('✅ [RN] Address:', sessionData.address);
               clearInterval(pollInterval);
               
               setAuthenticated(true);
@@ -186,21 +199,32 @@ export default function HomeScreen() {
               
               Alert.alert(
                 '✅ Wallet Connected!',
-                `Address: ${sessionData.address.substring(0, 6)}...${sessionData.address.substring(sessionData.address.length - 4)}\n\nYou can now use all wallet features.`,
+                `Address: ${sessionData.address.substring(0, 6)}...${sessionData.address.substring(sessionData.address.length - 4)}\n\nYour wallet has been successfully connected.`,
                 [{ text: 'OK' }]
               );
+            } else {
+              console.log('[RN] ⏳ Still waiting for connection...');
             }
+          } else {
+            console.log(`[RN] ⚠️ Status response not OK: ${statusResponse.status}`);
           }
         } catch (err) {
           console.error('[RN] ⚠️ Poll error:', err);
         }
+        
+        // Stop after max attempts
+        if (pollAttempts >= maxPollAttempts) {
+          clearInterval(pollInterval);
+          console.log('[RN] ⏱️ Polling timeout reached - stopped checking');
+          if (!authenticated) {
+            Alert.alert(
+              '⏱️ Connection Timeout',
+              'Did not receive wallet connection. Please try again or check your connection.',
+              [{ text: 'OK' }]
+            );
+          }
+        }
       }, 2000); // Poll every 2 seconds
-      
-      // Stop polling after 2 minutes (60 attempts)
-      setTimeout(() => {
-        clearInterval(pollInterval);
-        console.log('[RN] ⏱️ Polling timeout - stopped checking session status');
-      }, 120000);
       
       // Step 4: Connect socket (secondary/backup method)
       console.log('[RN] 🔌 Attempting Socket.IO connection to:', SOCKET_CONFIG.url);
@@ -254,17 +278,18 @@ export default function HomeScreen() {
       // Step 5: Show WebView
       setShowWebView(true);
       
-      // Step 6: Build MetaMask deep link with session ID
-      const dappUrlWithSession = `${DAPP_URL}?sid=${newSessionId}`;
+      // Step 6: Build MetaMask deep link with session ID (roomId)
+      const dappUrlWithSession = `${DAPP_URL}?sid=${newSessionId}&roomId=${newSessionId}`;
       const urlWithSessionNoProtocol = dappUrlWithSession.replace(/^https?:\/\//, '');
       const metaMaskDeepLink = `${METAMASK_CONFIG.scheme}/${urlWithSessionNoProtocol}`;
       
-      console.log('🦊 [METAMASK] Opening with session:', metaMaskDeepLink);
+      console.log('🦊 [METAMASK] Opening with session/roomId:', metaMaskDeepLink);
+      console.log('🦊 [METAMASK] RoomId for polling:', newSessionId);
       
       // Step 8: Open MetaMask
       Alert.alert(
         'Connect Wallet',
-        'Opening MetaMask browser...\n\n1. Connect your wallet in MetaMask\n2. Sign the login message\n3. You\'ll be notified when connected!',
+        `🔑 Session: ${newSessionId.substring(0, 10)}...\n\nOpening MetaMask browser...\n\n1. Connect your wallet in MetaMask\n2. Sign the login message\n3. Return to app - we'll detect the connection!\n\n⏱️ The app will auto-update when connected.`,
         [
           {
             text: 'Open MetaMask',
@@ -277,6 +302,7 @@ export default function HomeScreen() {
                 if (canOpen) {
                   await Linking.openURL(metaMaskDeepLink);
                   console.log('✅ [METAMASK] Opened successfully');
+                  console.log('✅ [METAMASK] Polling is active and will detect connection');
                 } else {
                   throw new Error('MetaMask app not found or URL cannot be opened');
                 }
@@ -293,6 +319,7 @@ export default function HomeScreen() {
           { text: 'Cancel', style: 'cancel', onPress: () => {
             setShowWebView(false);
             setSessionId(null);
+            clearInterval(pollInterval);
             
             // Clean up socket if created
             if (socketRef.current) {
@@ -324,12 +351,29 @@ export default function HomeScreen() {
 
   const handleOpenMetaMask = async () => {
     try {
-      const urlWithoutProtocol = DAPP_URL.replace(/^https?:\/\//, '');
+      // If we already have a session ID, use it; otherwise create a new one
+      let useSessionId = sessionId;
+      
+      if (!useSessionId) {
+        console.log('🚀 [CONNECT] Creating new session for MetaMask...');
+        const response = await fetch(`${BACKEND_URL}/api/session/new`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        });
+        const { sessionId: newSessionId } = await response.json();
+        useSessionId = newSessionId;
+        setSessionId(newSessionId);
+        console.log('✅ [SESSION] Created:', newSessionId);
+      }
+      
+      // Build URL with session ID
+      const dappUrlWithSession = `${DAPP_URL}?sid=${useSessionId}&roomId=${useSessionId}`;
+      const urlWithoutProtocol = dappUrlWithSession.replace(/^https?:\/\//, '');
       const metaMaskDeepLink = `https://metamask.app.link/dapp/${urlWithoutProtocol}`;
       
       Alert.alert(
         'Open in MetaMask',
-        'You will be redirected to MetaMask to connect your wallet. After connecting, you can return to this app.',
+        `🔑 Session: ${useSessionId?.substring(0, 10)}...\n\nYou will be redirected to MetaMask to connect your wallet. After connecting, you can return to this app.`,
         [
           {
             text: 'Open MetaMask',
@@ -345,13 +389,83 @@ export default function HomeScreen() {
                   throw new Error('MetaMask app not found or URL cannot be opened');
                 }
                 
+                // Setup Socket.IO connection if we have a session
+                if (useSessionId && !socketRef.current) {
+                  console.log('[RN] 🔌 Setting up Socket.IO connection...');
+                  const socket = io(SOCKET_CONFIG.url, {
+                    ...SOCKET_CONFIG.options,
+                    extraHeaders: { 'x-client': 'react-native' }
+                  });
+                  
+                  socketRef.current = socket;
+                  
+                  socket.on('connect', () => {
+                    console.log('✅ [RN] Socket connected:', socket.id);
+                    socket.emit('join', useSessionId);
+                  });
+                  
+                  socket.on('session:connected', ({ address }: { address: string }) => {
+                    console.log('✅ [RN] Wallet connected via socket:', address);
+                    setAuthenticated(true);
+                    setUserAddress(address);
+                    Alert.alert(
+                      '✅ Wallet Connected!',
+                      `Address: ${address.substring(0, 6)}...${address.substring(address.length - 4)}\n\nYou can now use all wallet features.`,
+                      [{ text: 'OK' }]
+                    );
+                  });
+                  
+                  socket.on('connect_error', (error: Error) => {
+                    console.error('❌ [RN] Socket error:', error.message);
+                  });
+                }
+                
+                // Start polling for connection status
+                if (useSessionId) {
+                  console.log('[RN] 🔍 Starting session status polling...');
+                  let pollAttempts = 0;
+                  const maxPollAttempts = 60;
+                  
+                  const pollInterval = setInterval(async () => {
+                    if (authenticated) {
+                      clearInterval(pollInterval);
+                      return;
+                    }
+                    
+                    pollAttempts++;
+                    
+                    try {
+                      const statusResponse = await fetch(`${BACKEND_URL}/api/session/${useSessionId}`);
+                      if (statusResponse.ok) {
+                        const sessionData = await statusResponse.json();
+                        if (sessionData.connected && sessionData.address) {
+                          clearInterval(pollInterval);
+                          setAuthenticated(true);
+                          setUserAddress(sessionData.address);
+                          Alert.alert(
+                            '✅ Wallet Connected!',
+                            `Address: ${sessionData.address.substring(0, 6)}...${sessionData.address.substring(sessionData.address.length - 4)}`,
+                            [{ text: 'OK' }]
+                          );
+                        }
+                      }
+                    } catch (err) {
+                      console.error('[RN] ⚠️ Poll error:', err);
+                    }
+                    
+                    if (pollAttempts >= maxPollAttempts) {
+                      clearInterval(pollInterval);
+                    }
+                  }, 2000);
+                }
+                
                 await Linking.openURL(metaMaskDeepLink);
                 
                 // Show info that user can return
                 setTimeout(() => {
                   Alert.alert(
                     'Return to App',
-                    'After connecting in MetaMask, please return to this app to continue.',
+                    'After connecting in MetaMask, please return to this app to continue.\n\n⏱️ The app will auto-detect the connection.',
                     [{ text: 'OK' }]
                   );
                 }, 1000);
@@ -457,6 +571,7 @@ export default function HomeScreen() {
           key={webViewKey}
           dappUrl={sessionId ? `${DAPP_URL}?sid=${sessionId}` : DAPP_URL}
           sessionId={sessionId || undefined}
+          authenticated={authenticated}
           onAuthenticated={handleAuthenticated}
           onTransactionSent={handleTransactionSent}
           onError={handleError}

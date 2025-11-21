@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Ethereum Wallet DApp</title>
   <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
+  <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
   <style>
     * {
       margin: 0;
@@ -241,26 +242,69 @@
     // Configuration
     const API_BASE_URL = window.location.origin;
     
-    // Read sessionId from URL parameters
+    // Read sessionId and roomId from URL parameters
     const urlParams = new URLSearchParams(window.location.search);
     const sessionIdFromUrl = urlParams.get('sid');
+    const roomIdFromUrl = urlParams.get('roomId');
     
     let provider = null;
     let signer = null;
     let currentAddress = null;
     let currentNonce = null;
     let currentSessionId = sessionIdFromUrl || null;
+    let currentRoomId = roomIdFromUrl || currentSessionId; // roomId defaults to sessionId
+    let socket = null;
     
     console.log('🔍 [INIT] Page URL:', window.location.href);
     console.log('🔍 [INIT] Session ID from URL:', currentSessionId);
+    console.log('🔍 [INIT] Room ID from URL:', currentRoomId);
     console.log('🔍 [INIT] URL params:', window.location.search);
+
+    // Initialize Socket.IO connection if we have a session ID
+    if (currentSessionId) {
+      console.log('🔌 [SOCKET] Initializing Socket.IO connection...');
+      try {
+        socket = io(API_BASE_URL, {
+          transports: ['websocket', 'polling'],
+          reconnection: true,
+          reconnectionAttempts: 5,
+          reconnectionDelay: 1000,
+          timeout: 10000,
+          extraHeaders: {
+            'x-client': 'metamask-browser'
+          }
+        });
+
+        socket.on('connect', () => {
+          console.log('✅ [SOCKET] Connected:', socket.id);
+          console.log('🔌 [SOCKET] Joining session room:', currentSessionId);
+          socket.emit('join', currentSessionId);
+        });
+
+        socket.on('joined', (data) => {
+          console.log('✅ [SOCKET] Successfully joined room:', data);
+        });
+
+        socket.on('connect_error', (error) => {
+          console.error('❌ [SOCKET] Connection error:', error.message);
+        });
+
+        socket.on('disconnect', (reason) => {
+          console.log('🔌 [SOCKET] Disconnected:', reason);
+        });
+
+        console.log('✅ [SOCKET] Socket.IO initialized');
+      } catch (error) {
+        console.error('❌ [SOCKET] Failed to initialize:', error);
+      }
+    }
 
     // Show debug info
     const debugInfo = document.getElementById('debugInfo');
     const debugSessionId = document.getElementById('debugSessionId');
     if (currentSessionId) {
       debugInfo.style.display = 'block';
-      debugSessionId.textContent = currentSessionId;
+      debugSessionId.innerHTML = `Session: ${currentSessionId}<br>Room: ${currentRoomId}`;
     }
 
     // Elements
@@ -454,11 +498,12 @@
         if (result.success) {
           showStatus('✅ Authentication successful! Returning to app...', 'success');
           
-          // Construct deep link return URI with all parameters
-          const returnUri = `myapp://connected?action=connect&sid=${encodeURIComponent(currentSessionId)}&address=${encodeURIComponent(currentAddress)}`;
+          // Construct deep link return URI with all parameters including roomId
+          const returnUri = `myapp://connected?action=connect&sid=${encodeURIComponent(currentSessionId)}&roomId=${encodeURIComponent(currentRoomId)}&address=${encodeURIComponent(currentAddress)}`;
           
           console.log('🔗 [REDIRECT] Attempting redirect to:', returnUri);
           console.log('🔗 [REDIRECT] Session ID:', currentSessionId);
+          console.log('🔗 [REDIRECT] Room ID:', currentRoomId);
           console.log('🔗 [REDIRECT] Address:', currentAddress);
           
           // Multiple redirect strategies for maximum compatibility
@@ -485,21 +530,48 @@
             }
           }, 100);
           
-          // Strategy 3: Show manual fallback UI after delay
+          // Strategy 3: Show manual fallback UI immediately (don't wait)
           setTimeout(() => {
             document.body.innerHTML = `
               <div style="padding:20px;font-family: sans-serif;text-align:center;background:#f0f9ff;min-height:100vh;display:flex;flex-direction:column;justify-content:center;align-items:center;">
                 <div style="background:white;border-radius:16px;padding:32px;max-width:400px;box-shadow:0 4px 12px rgba(0,0,0,0.1);">
-                  <h2 style="color:#28a745;margin-bottom:16px;">✅ You're Connected!</h2>
-                  <p style="margin:20px 0;color:#666;line-height:1.6;">Your wallet has been successfully authenticated.<br><br>If you weren't automatically redirected, tap the button below:</p>
-                  <a href="${returnUri}" style="display:inline-block;padding:16px 32px;background:linear-gradient(135deg, #667eea 0%, #764ba2 100%);color:#fff;border-radius:12px;text-decoration:none;font-weight:600;font-size:16px;margin-top:16px;box-shadow:0 4px 12px rgba(102,126,234,0.4);transition:transform 0.2s;" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform='translateY(0)'">🚀 Return to App</a>
-                  <p style="margin-top:24px;color:#999;font-size:13px;">Session: ${currentSessionId.substring(0,10)}...</p>
-                  <p style="margin-top:8px;color:#999;font-size:13px;">Address: ${currentAddress.substring(0,8)}...${currentAddress.substring(currentAddress.length-6)}</p>
+                  <div style="font-size:48px;margin-bottom:16px;">✅</div>
+                  <h2 style="color:#28a745;margin-bottom:16px;">You're Connected!</h2>
+                  <p style="margin:20px 0;color:#666;line-height:1.6;">Your wallet has been successfully authenticated.</p>
+                  
+                  <div style="background:#e8f5e9;border-radius:12px;padding:16px;margin:20px 0;">
+                    <p style="color:#2e7d32;font-weight:600;margin-bottom:8px;">✨ Connection Detected</p>
+                    <p style="color:#555;font-size:14px;">Your app should update automatically within a few seconds.</p>
+                  </div>
+                  
+                  <p style="color:#666;font-size:14px;margin-bottom:16px;">If you weren't automatically redirected, tap the button below:</p>
+                  
+                  <a href="${returnUri}" onclick="console.log('Manual return clicked'); return true;" style="display:inline-block;padding:16px 32px;background:linear-gradient(135deg, #667eea 0%, #764ba2 100%);color:#fff;border-radius:12px;text-decoration:none;font-weight:600;font-size:16px;margin-top:8px;box-shadow:0 4px 12px rgba(102,126,234,0.4);transition:transform 0.2s;">🚀 Return to App</a>
+                  
+                  <details style="margin-top:24px;text-align:left;">
+                    <summary style="color:#999;font-size:13px;cursor:pointer;padding:8px;">📋 Connection Details</summary>
+                    <div style="background:#f8f9fa;border-radius:8px;padding:12px;margin-top:8px;">
+                      <p style="color:#666;font-size:12px;margin:4px 0;word-break:break-all;"><strong>Session:</strong> ${currentSessionId}</p>
+                      <p style="color:#666;font-size:12px;margin:4px 0;word-break:break-all;"><strong>Room:</strong> ${currentRoomId}</p>
+                      <p style="color:#666;font-size:12px;margin:4px 0;word-break:break-all;"><strong>Address:</strong> ${currentAddress}</p>
+                    </div>
+                  </details>
+                  
                   <hr style="margin:24px 0;border:none;border-top:1px solid #eee;">
-                  <p style="color:#666;font-size:12px;line-height:1.5;">💡 Tip: You can manually switch back to your app if the button doesn't work.</p>
+                  <p style="color:#666;font-size:12px;line-height:1.5;">💡 You can manually switch to your app using the task switcher if needed.</p>
                 </div>
               </div>`;
-          }, 1500);
+              
+            // Try one more redirect after showing the UI
+            setTimeout(() => {
+              try {
+                console.log('🔗 [FINAL REDIRECT] Last attempt...');
+                window.location.href = returnUri;
+              } catch (e) {
+                console.log('Auto-redirect blocked by browser');
+              }
+            }, 500);
+          }, 500);
         } else {
           showStatus(`Authentication failed: ${result.error}`, 'error');
         }
@@ -598,20 +670,46 @@
 
     // Return to app function
     function returnToApp() {
-      // For iOS
-      const iosScheme = 'exp://192.168.1.100:8081'; // Expo dev URL
-      // For Android  
-      const androidScheme = 'exp://192.168.1.100:8081';
+      // Build proper deep link with session data if available
+      let returnUri;
       
-      // Try to detect platform and use appropriate scheme
-      const scheme = /iPhone|iPad|iPod/.test(navigator.userAgent) ? iosScheme : androidScheme;
+      if (currentSessionId && currentAddress) {
+        // User is authenticated - return with full data
+        returnUri = `myapp://connected?action=connect&sid=${encodeURIComponent(currentSessionId)}&roomId=${encodeURIComponent(currentRoomId || currentSessionId)}&address=${encodeURIComponent(currentAddress)}`;
+      } else if (currentSessionId) {
+        // Session exists but not authenticated yet - return with session ID
+        returnUri = `myapp://connected?sid=${encodeURIComponent(currentSessionId)}&roomId=${encodeURIComponent(currentRoomId || currentSessionId)}`;
+      } else {
+        // No session - just return to app home
+        returnUri = 'myapp://';
+      }
       
-      // Attempt to return to app
-      window.location.href = scheme;
+      console.log('🔗 [RETURN] Attempting to return to app:', returnUri);
       
-      // Show a message after a short delay if still here
+      // Try multiple strategies
+      try {
+        window.location.href = returnUri;
+      } catch (e) {
+        console.error('❌ Direct redirect failed:', e);
+      }
+      
+      // Fallback: create and click link
       setTimeout(() => {
-        showStatus('💡 Please manually return to the app to continue.', 'info');
+        try {
+          const a = document.createElement('a');
+          a.href = returnUri;
+          a.style.display = 'none';
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+        } catch (e) {
+          console.error('❌ Link click failed:', e);
+        }
+      }, 100);
+      
+      // Show message if still here
+      setTimeout(() => {
+        showStatus('💡 If you weren\'t redirected, manually switch back to the app.', 'info');
       }, 1000);
     }
 

@@ -5,6 +5,7 @@ import { WebView } from 'react-native-webview';
 interface WalletWebViewProps {
   dappUrl: string;
   sessionId?: string;
+  authenticated?: boolean;
   onAuthenticated?: (address: string) => void;
   onTransactionSent?: (txHash: string) => void;
   onError?: (error: string) => void;
@@ -14,6 +15,7 @@ interface WalletWebViewProps {
 export default function WalletWebView({
   dappUrl,
   sessionId,
+  authenticated = false,
   onAuthenticated,
   onTransactionSent,
   onError,
@@ -21,7 +23,7 @@ export default function WalletWebView({
 }: WalletWebViewProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [waitingForConnection] = useState(!!sessionId);
+  const waitingForConnection = !!sessionId && !authenticated;
   const webViewRef = useRef<WebView>(null);
 
   // NOTE: Socket.IO connection is now handled in the parent HomeScreen component

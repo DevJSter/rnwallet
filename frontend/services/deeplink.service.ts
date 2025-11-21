@@ -428,3 +428,5 @@ export function formatTxHash(txHash: string): string {
   if (!txHash) return 'N/A';
   return `${txHash.substring(0, 10)}...${txHash.substring(txHash.length - 8)}`;
 }
+
+  

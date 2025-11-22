@@ -4,8 +4,8 @@
   "version": "1.0.0",
   "scripts": {
     "start": "expo start",
-    "dev:android" : "rm -rf android/build&&npx expo run:android",
-    "dev:ios" : "rm -rf ios/build&&npx expo run:ios", 
+    "dev:android": "rm -rf android/build&&npx expo run:android",
+    "dev:ios": "rm -rf ios/build&&npx expo run:ios",
     "reset-project": "node ./scripts/reset-project.js",
     "android": "expo run:android",
     "ios": "expo run:ios",
@@ -13,10 +13,13 @@
     "lint": "expo lint"
   },
   "dependencies": {
+    "@aa-sdk/core": "^4.79.0",
     "@expo/vector-icons": "^15.0.3",
+    "@gorhom/bottom-sheet": "^5.2.6",
     "@react-navigation/bottom-tabs": "^7.4.0",
     "@react-navigation/elements": "^2.6.3",
     "@react-navigation/native": "^7.1.8",
+    "ethers": "^6.13.0",
     "expo": "~54.0.25",
     "expo-constants": "~18.0.10",
     "expo-dev-client": "~6.0.18",
@@ -40,7 +43,8 @@
     "react-native-web": "~0.21.0",
     "react-native-webview": "^13.6.4",
     "react-native-worklets": "0.5.1",
-    "socket.io-client": "^4.8.1"
+    "socket.io-client": "^4.8.1",
+    "viem": "^2.39.3"
   },
   "devDependencies": {
     "@types/react": "~19.1.0",

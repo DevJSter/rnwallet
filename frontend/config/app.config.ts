@@ -12,8 +12,11 @@
 /**
  * Backend server URL
  * Update this to your deployed backend URL or dev tunnel URL
+ * 
+ * Using public tunnel for wallet apps to access (localtunnel)
+ * This allows MetaMask and other wallet apps to load the dApp page
  */
-export const BACKEND_URL = 'https://2qpfn6bb-3000.inc1.devtunnels.ms';
+export const BACKEND_URL = 'https://2qpfn6bb-3000.inc1.devtunnels.ms';  // Public tunnel URL
 
 /**
  * DApp HTML page URL

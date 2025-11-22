@@ -5,7 +5,7 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.jpg",
-    "scheme": "myapp",
+    "scheme": "frontend",
     "deepLinking": true,
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,

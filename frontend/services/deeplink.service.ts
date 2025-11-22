@@ -3,6 +3,8 @@
  * 
  * Professional service for handling deep links in the wallet application.
  * Provides URL parsing, session management, and event-driven callbacks.
+ * 
+ * Enhanced with direct wallet connection support (no browser needed)
  */
 
 import { Linking, Alert } from 'react-native';
@@ -11,7 +13,7 @@ import { Linking, Alert } from 'react-native';
 // Types
 // ============================================================================
 
-export type DeepLinkScheme = 'myapp' | 'frontend';
+export type DeepLinkScheme = 'myapp' | 'frontend' | 'dappwallet';
 
 export interface DeepLinkParams {
   /** Session ID from wallet connection */
@@ -23,7 +25,19 @@ export interface DeepLinkParams {
   /** Error message */
   error?: string;
   /** Custom action */
-  action?: 'connect' | 'disconnect' | 'transaction' | 'error';
+  action?: 'connect' | 'disconnect' | 'transaction' | 'error' | 'sign' | 'approve';
+  /** Message to sign */
+  message?: string;
+  /** Signature result */
+  signature?: string;
+  /** Chain ID */
+  chainId?: string;
+  /** Transaction data */
+  data?: string;
+  /** Transaction value */
+  value?: string;
+  /** To address */
+  to?: string;
 }
 
 export interface ParsedDeepLink {
@@ -429,4 +443,3 @@ export function formatTxHash(txHash: string): string {
   return `${txHash.substring(0, 10)}...${txHash.substring(txHash.length - 8)}`;
 }
 
-  
